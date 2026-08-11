@@ -3,7 +3,7 @@ import logging
 import os
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -86,7 +86,7 @@ main_menu = ReplyKeyboardMarkup(keyboard=[
 ], resize_keyboard=True)
 
 @dp.message(CommandStart())
-async def cmd_start(message: types.Message, command: CommandStart):
+async def cmd_start(message: types.Message, command: CommandObject):
     await database.add_user(message.from_user.id)
     
     # command.args - bu deep-link kodi. Masalan: t.me/bot?start=solo15 => command.args = 'solo15'
