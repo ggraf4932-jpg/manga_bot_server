@@ -395,13 +395,13 @@ async def keep_alive():
 # ==================================================
 
 async def main():
+    # Render uchun web serverni darhol fonda ishga tushiramiz (portni band qilish uchun)
+    asyncio.create_task(start_web_server())
+    asyncio.create_task(keep_alive())
+
     # Bazani ulaymiz
     await database.init_db()
     logging.info("Ma'lumotlar bazasi ishga tushdi.")
-    
-    # Render uchun web serverni fonda ishga tushiramiz
-    asyncio.create_task(start_web_server())
-    asyncio.create_task(keep_alive())
     
     # Botni ishga tushiramiz
     await dp.start_polling(bot)

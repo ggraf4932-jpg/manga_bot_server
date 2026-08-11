@@ -1,5 +1,6 @@
 import config
 from motor.motor_asyncio import AsyncIOMotorClient
+import certifi
 
 # MongoDB'ga ulanish (faqat init_db chaqirilganda ishga tushadi)
 client = None
@@ -7,8 +8,8 @@ db = None
 
 async def init_db():
     global client, db
-    # Ulanishni o'rnatish
-    client = AsyncIOMotorClient(config.MONGO_URL)
+    # Ulanishni o'rnatish, TLS sertifikatlarini ko'rsatish
+    client = AsyncIOMotorClient(config.MONGO_URL, tlsCAFile=certifi.where())
     db = client.manga_bot_db # Baza nomi
 
     # Kolleksiyalar avtomatik yaratiladi, faqat kerak bo'lsa index (kalitlar) o'rnatamiz
