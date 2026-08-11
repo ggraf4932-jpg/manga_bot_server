@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
@@ -345,10 +347,35 @@ async def process_manga_code(message: types.Message, state: FSMContext):
         
     await state.clear()
 
+# ==================================================
+# Dummy Web Server (Render uchun)
+# ==================================================
+async def handle_ping(request):
+    return web.Response(text="Bot is alive and running!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logging.info(f"Dummy web server started on port {port}")
+
+# ==================================================
+# Asosiy ishga tushirish funksiyasi
+# ==================================================
 
 async def main():
+    # Bazani ulaymiz
     await database.init_db()
     logging.info("Ma'lumotlar bazasi ishga tushdi.")
+    
+    # Render uchun web serverni fonda ishga tushiramiz
+    asyncio.create_task(start_web_server())
+    
+    # Botni ishga tushiramiz
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
