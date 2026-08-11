@@ -107,7 +107,16 @@ async def cmd_start(message: types.Message, command: CommandStart):
     if code:
         await send_manga_by_code(message, code)
     else:
-        await message.answer("Assalomu alaykum! Kerakli mangani olish uchun maxsus havoladan foydalaning yoki pastdagi menyudan tanlang.", reply_markup=main_menu)
+        welcome_text = (
+            "👋 *Assalomu alaykum! iNEMO Manga botiga xush kelibsiz!*\n\n"
+            "Bu bot orqali siz sevimli mangalaringizni sifatli PDF formatida, o'zbek tilida yuklab olishingiz mumkin.\n\n"
+            "📖 *Qisqacha qo'llanma:*\n"
+            "• Mangani yuklash uchun kanalimizdagi maxsus havolani bosing.\n"
+            "• Barcha PDF fayllar himoyalangan. Parol: `@inemo_manga`\n"
+            "• Yangi qismlarni o'tkazib yubormaslik uchun ularni ❤️ Sevimlilarga qo'shishni unutmang.\n\n"
+            "👇 Quyidagi menyudan kerakli bo'limni tanlang:"
+        )
+        await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_menu)
 
 @dp.callback_query(F.data.startswith("check_sub:"))
 async def check_sub_handler(callback: CallbackQuery):
@@ -121,7 +130,12 @@ async def check_sub_handler(callback: CallbackQuery):
         if code:
             await send_manga_by_code(callback.message, code)
         else:
-            await callback.message.answer("Obuna tasdiqlandi! Endi botdan foydalanishingiz mumkin.", reply_markup=main_menu)
+            welcome_text = (
+                "✅ *Obuna tasdiqlandi! iNEMO Manga botiga xush kelibsiz.*\n\n"
+                "📖 Barcha PDF fayllar himoyalangan. Parol: `@inemo_manga`\n\n"
+                "👇 Quyidagi menyudan kerakli bo'limni tanlang:"
+            )
+            await callback.message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_menu)
     else:
         await callback.answer("Hali barcha kanallarga a'zo bo'lmadingiz!", show_alert=True)
 
