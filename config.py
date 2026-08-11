@@ -1,0 +1,7 @@
+import os
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+ADMIN_IDS = [5410966675] 
+PRIVATE_CHANNEL_ID = -1003977559790
+
+MONGO_URL = os.environ.get("MONGO_URL")
