@@ -363,6 +363,19 @@ async def start_web_server():
     await site.start()
     logging.info(f"Dummy web server started on port {port}")
 
+async def keep_alive():
+    """Bot o'zini o'zi har 10 daqiqada uyg'otib turishi uchun."""
+    url = "https://mangabotserver.onrender.com"
+    while True:
+        await asyncio.sleep(10 * 60) # 10 daqiqa kutiladi
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    logging.info(f"O'zini uyg'otish so'rovi yuborildi! Holati: {response.status}")
+        except Exception as e:
+            logging.error(f"Uyg'otishda xatolik: {e}")
+
 # ==================================================
 # Asosiy ishga tushirish funksiyasi
 # ==================================================
@@ -374,6 +387,7 @@ async def main():
     
     # Render uchun web serverni fonda ishga tushiramiz
     asyncio.create_task(start_web_server())
+    asyncio.create_task(keep_alive())
     
     # Botni ishga tushiramiz
     await dp.start_polling(bot)
