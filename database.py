@@ -39,8 +39,20 @@ async def add_channel(channel_id: int, url: str):
         upsert=True
     )
 
-async def remove_channel(channel_id: int):
-    await db.channels.delete_one({"channel_id": channel_id})
+async def remove_channel(channel_id):
+    # Ba'zida MongoDB'da ID string yoki int formatida qolib ketgan bo'lishi mumkin
+    try:
+        int_id = int(channel_id)
+    except:
+        int_id = None
+        
+    str_id = str(channel_id)
+    
+    query = {"$in": [str_id]}
+    if int_id is not None:
+        query["$in"].append(int_id)
+        
+    await db.channels.delete_many({"channel_id": query})
 
 async def get_channels():
     cursor = db.channels.find({}, {"channel_id": 1, "url": 1, "_id": 0})
