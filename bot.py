@@ -411,6 +411,13 @@ async def process_manga_caption(message: types.Message, state: FSMContext):
 @dp.message(AdminStates.waiting_for_old_manga_code)
 async def process_old_manga_code(message: types.Message, state: FSMContext):
     code = message.text.strip().replace(" ", "_")
+    
+    # Bazadan tekshirish
+    msg_id = await database.get_manga(code)
+    if not msg_id:
+        await message.answer(f"⚠️ Xatolik: Baza ichida `{code}` kodli manga topilmadi! Iltimos, kodni to'g'ri kiritganingizga ishonch hosil qiling va qaytadan yuboring:")
+        return
+        
     bot_info = await bot.get_me()
     link = f"https://t.me/{bot_info.username}?start={code}"
     
