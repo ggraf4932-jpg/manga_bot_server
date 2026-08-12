@@ -330,8 +330,14 @@ async def del_channel(callback: CallbackQuery):
         pass
         
     await database.remove_channel(ch_id)
-    await callback.message.answer(f"Kanal (ID: {ch_id}) majburiy ro'yxatdan o'chirildi.")
-    await callback.answer()
+    await callback.message.answer(f"✅ Kanal (ID: {ch_id}) majburiy ro'yxatdan o'chirildi.\nIltimos ro'yxatni yangilash uchun yana 'Kanallarni ko'rish' tugmasini bosing.")
+    
+    try:
+        await callback.message.delete()
+    except:
+        pass
+        
+    await callback.answer("O'chirildi!", show_alert=True)
 
 # Manga qo'shish state
 @dp.message(AdminStates.waiting_for_manga_post)
