@@ -322,7 +322,7 @@ async def process_channel_url(message: types.Message, state: FSMContext):
 @dp.callback_query(F.data.startswith("del_ch:"))
 async def del_channel(callback: CallbackQuery):
     if not is_admin(callback.from_user.id): return
-    ch_id = callback.data.split(":")[1]
+    ch_id = callback.data.split(":", 1)[1]
     
     try:
         ch_id = int(ch_id)

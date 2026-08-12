@@ -52,6 +52,9 @@ async def remove_channel(channel_id):
     if int_id is not None:
         query["$in"].append(int_id)
         
+    if str_id == "None":
+        query["$in"].append(None)
+        
     await db.channels.delete_many({"channel_id": query})
 
 async def get_channels():
