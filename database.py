@@ -74,6 +74,40 @@ async def get_manga(code: str):
     manga = await db.mangas.find_one({"code": code})
     return manga["message_id"] if manga else None
 
+async def check_manga_exists(code: str):
+    manga = await db.mangas.find_one({"code": code})
+    return manga is not None
+
+async def get_all_series():
+    cursor = db.mangas.find({}, {"code": 1, "_id": 0})
+    mangas = await cursor.to_list(length=None)
+    series = set()
+    for m in mangas:
+        code = m.get("code", "")
+        series_name = code.split('_')[0] if '_' in code else code
+        if series_name:
+            series.add(series_name)
+    return list(series)
+
+async def get_manga_chapters(series_code: str):
+    cursor = db.mangas.find({"code": {"$regex": f"^{series_code}_?"}}, {"code": 1, "_id": 0})
+    mangas = await cursor.to_list(length=None)
+    chapters = []
+    for m in mangas:
+        code = m.get("code")
+        s_code = code.split('_')[0] if '_' in code else code
+        if s_code == series_code:
+            chapters.append(code)
+            
+    def extract_num(c):
+        parts = c.split('_')
+        if len(parts) > 1 and parts[1].isdigit():
+            return int(parts[1])
+        return 0
+        
+    chapters.sort(key=extract_num)
+    return chapters
+
 # --- Sevimlilar ---
 async def add_favorite(user_id: int, series_code: str):
     await db.favorites.update_one(

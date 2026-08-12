@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import difflib
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command, CommandObject
@@ -185,7 +186,7 @@ async def send_manga_by_code(message: types.Message, code: str):
     msg_id = await database.get_manga(code)
     if msg_id:
         try:
-            # Faylni yopiq kanaldan foydalanuvchiga nusxalab berish (forward qilsa "Yopiq kanal" yozuvi chiqib qolishi mumkin, copy qilingani yaxshi)
+            # Faylni yopiq kanaldan foydalanuvchiga nusxalab berish
             await bot.copy_message(
                 chat_id=message.chat.id,
                 from_chat_id=config.PRIVATE_CHANNEL_ID,
@@ -196,9 +197,29 @@ async def send_manga_by_code(message: types.Message, code: str):
             is_fav = await database.is_favorite(message.chat.id, series_code)
             
             fav_text = "💔 Sevimlilardan olib tashlash" if is_fav else "❤️ Sevimlilarga qo'shish"
-            fav_kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=fav_text, callback_data=f"fav:{series_code}")]
-            ])
+            
+            # Navigatsiya tugmalari (Oldingi / Keyingi)
+            nav_row = []
+            parts = code.split('_')
+            if len(parts) > 1 and parts[1].isdigit():
+                num = int(parts[1])
+                prev_code = f"{series_code}_{num-1}"
+                next_code = f"{series_code}_{num+1}"
+                
+                has_prev = await database.check_manga_exists(prev_code)
+                has_next = await database.check_manga_exists(next_code)
+                
+                if has_prev:
+                    nav_row.append(InlineKeyboardButton(text="⬅️ Oldingi qism", callback_data=f"get_ch:{prev_code}"))
+                if has_next:
+                    nav_row.append(InlineKeyboardButton(text="Keyingi qism ➡️", callback_data=f"get_ch:{next_code}"))
+            
+            kb = []
+            if nav_row:
+                kb.append(nav_row)
+            kb.append([InlineKeyboardButton(text=fav_text, callback_data=f"fav:{code}")])
+            
+            fav_kb = InlineKeyboardMarkup(inline_keyboard=kb)
             
             await message.answer("🔒 Ushbu PDF fayl qulflangan!\nUni ochish uchun parol: `@inemo_manga`\n_(Parol ustiga bossangiz nusxa oladi)_", parse_mode="Markdown", reply_markup=fav_kb)
         except Exception as e:
@@ -209,7 +230,8 @@ async def send_manga_by_code(message: types.Message, code: str):
 
 @dp.callback_query(F.data.startswith("fav:"))
 async def toggle_favorite(callback: CallbackQuery):
-    series_code = callback.data.split(":")[1]
+    code = callback.data.split(":")[1]
+    series_code = code.split('_')[0] if '_' in code else code
     is_fav = await database.is_favorite(callback.from_user.id, series_code)
     
     if is_fav:
@@ -221,10 +243,102 @@ async def toggle_favorite(callback: CallbackQuery):
         await callback.answer("Sevimlilarga qo'shildi! Yangi qism chiqqanda xabar beramiz.", show_alert=True)
         fav_text = "💔 Sevimlilardan olib tashlash"
         
-    fav_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=fav_text, callback_data=f"fav:{series_code}")]
-    ])
-    await callback.message.edit_reply_markup(reply_markup=fav_kb)
+    nav_row = []
+    parts = code.split('_')
+    if len(parts) > 1 and parts[1].isdigit():
+        num = int(parts[1])
+        prev_code = f"{series_code}_{num-1}"
+        next_code = f"{series_code}_{num+1}"
+        
+        has_prev = await database.check_manga_exists(prev_code)
+        has_next = await database.check_manga_exists(next_code)
+        
+        if has_prev:
+            nav_row.append(InlineKeyboardButton(text="⬅️ Oldingi qism", callback_data=f"get_ch:{prev_code}"))
+        if has_next:
+            nav_row.append(InlineKeyboardButton(text="Keyingi qism ➡️", callback_data=f"get_ch:{next_code}"))
+            
+    kb = []
+    if nav_row:
+        kb.append(nav_row)
+    kb.append([InlineKeyboardButton(text=fav_text, callback_data=f"fav:{code}")])
+    
+    await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data.startswith("series:"))
+async def series_callback(callback: CallbackQuery):
+    series = callback.data.split(":")[1]
+    chapters = await database.get_manga_chapters(series)
+    
+    if not chapters:
+        await callback.answer("Bu manga uchun qismlar topilmadi.", show_alert=True)
+        return
+        
+    text = f"📚 *{series.capitalize()}* mangasi qismlari:\n\nQuyidagilardan birini tanlang:"
+    
+    kb = []
+    row = []
+    for code in chapters:
+        num = code.split('_')[1] if '_' in code else code
+        row.append(InlineKeyboardButton(text=f"{num}-qism", callback_data=f"get_ch:{code}"))
+        if len(row) == 4:
+            kb.append(row)
+            row = []
+    if row:
+        kb.append(row)
+        
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data.startswith("get_ch:"))
+async def get_ch_callback(callback: CallbackQuery):
+    code = callback.data.split(":")[1]
+    
+    # Check subscriptions again if they click from inline button
+    is_subbed = await check_subscriptions(callback.from_user.id)
+    if not is_subbed:
+        await callback.answer("Kechirasiz, manga o'qish uchun oldin kanallarga a'zo bo'lishingiz kerak!", show_alert=True)
+        return
+        
+    await callback.answer()
+    await send_manga_by_code(callback.message, code)
+
+@dp.message(F.text)
+async def manga_search_handler(message: types.Message, state: FSMContext):
+    # Agar foydalanuvchi biror state da bo'lsa (masalan admin panelda narsa kiritayotgan bo'lsa) qidiruv ishlamasin
+    current_state = await state.get_state()
+    if current_state is not None:
+        return
+        
+    text = message.text.strip().lower()
+    
+    # Agar text menyu komandasi bo'lsa o'tkazib yuboramiz
+    if text.startswith('/') or text in ["👤 admin bilan bog'lanish", "ℹ️ yordam", "👻 anonim so'rov yuborish"]:
+        return
+    
+    series_list = await database.get_all_series()
+    if not series_list:
+        await message.answer("Bazada hali mangalar yo'q.")
+        return
+        
+    matches = difflib.get_close_matches(text, series_list, n=5, cutoff=0.4)
+    
+    if not matches:
+        matches = [s for s in series_list if text in s.lower()]
+        
+    if matches:
+        response = "🔍 Qidiruv natijalari:\n\n"
+        kb = []
+        for match in matches[:5]:
+            chapters = await database.get_manga_chapters(match)
+            if chapters:
+                kb.append([InlineKeyboardButton(text=f"📚 {match.capitalize()} ({len(chapters)} ta qism)", callback_data=f"series:{match}")])
+        
+        if kb:
+            await message.answer(response + "Quyidagi mangalardan birini tanlang:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        else:
+            await message.answer("Kechirasiz, mos manga qismlari topilmadi.")
+    else:
+        await message.answer("Kechirasiz, ushbu nomga o'xshash manga topilmadi.")
 
 # ==================================================
 # Admin qismi
@@ -314,8 +428,20 @@ async def process_channel_url(message: types.Message, state: FSMContext):
     except:
         pass # username formatida bo'lsa
         
+    try:
+        bot_user = await bot.get_me()
+        member = await bot.get_chat_member(chat_id=ch_id, user_id=bot_user.id)
+        if member.status not in ['administrator', 'creator']:
+            await message.answer("⚠️ Xatolik! Bot ushbu kanalda admin emas. Iltimos, oldin botni kanalda admin qiling va qaytadan qo'shing.")
+            await state.clear()
+            return
+    except Exception as e:
+        await message.answer(f"⚠️ Xatolik! Kanal topilmadi yoki bot kanalga a'zo emas. Iltimos tekshirib qaytadan urinib ko'ring.\nKo'pincha botni to'g'ridan-to'g'ri admin qilib qo'shganda ishlaydi.")
+        await state.clear()
+        return
+        
     await database.add_channel(ch_id, url)
-    await message.answer(f"Kanal muvaffaqiyatli qo'shildi!\nID: {ch_id}\nURL: {url}")
+    await message.answer(f"✅ Kanal muvaffaqiyatli qo'shildi!\nID: {ch_id}\nURL: {url}")
     await state.clear()
 
 # Kanal o'chirish
