@@ -254,7 +254,7 @@ async def admin_callbacks(callback: CallbackQuery, state: FSMContext):
     action = callback.data.split(":")[1]
     
     if action == "add_channel":
-        await callback.message.answer("Qo'shmoqchi bo'lgan kanalingizning ID raqamini (yoki username) kiriting. Misol: -100123456 yoki @mening_kanalim")
+        await callback.message.answer("Qo'shmoqchi bo'lgan kanalingizdan istalgan bir xabarni shu yerga FORWARD (uzatish) qiling.\n(Yoki kanal ID raqamini qo'lda kiriting. Misol: -100123456 yoki @kanal_user)")
         await state.set_state(AdminStates.waiting_for_channel_id)
         
     elif action == "list_channels":
@@ -288,8 +288,17 @@ async def admin_callbacks(callback: CallbackQuery, state: FSMContext):
 # Kanal qo'shish state
 @dp.message(AdminStates.waiting_for_channel_id)
 async def process_channel_id(message: types.Message, state: FSMContext):
-    await state.update_data(channel_id=message.text)
-    await message.answer("Endi ushbu kanalning taklif havolasini (URL) kiriting: (Masalan: https://t.me/kanal_linki)")
+    if message.forward_from_chat:
+        ch_id = str(message.forward_from_chat.id)
+    else:
+        ch_id = message.text.strip() if message.text else ""
+        
+    if not ch_id:
+        await message.answer("Iltimos, kanal ID sini kiriting yoki kanaldan post forward qiling.")
+        return
+        
+    await state.update_data(channel_id=ch_id)
+    await message.answer(f"✅ Kanal ID aniqlandi: `{ch_id}`\n\nEndi ushbu kanalning taklif havolasini (URL) kiriting: (Masalan: https://t.me/kanal_linki)")
     await state.set_state(AdminStates.waiting_for_channel_url)
 
 @dp.message(AdminStates.waiting_for_channel_url)
