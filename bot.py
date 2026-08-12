@@ -48,6 +48,10 @@ class AdminStates(StatesGroup):
     
     waiting_for_manga_post = State()
     waiting_for_manga_code = State()
+    waiting_for_manga_image = State()
+    
+    waiting_for_old_manga_code = State()
+    waiting_for_old_manga_image = State()
 
 class UserStates(StatesGroup):
     waiting_for_anon_message = State()
@@ -235,6 +239,7 @@ async def cmd_admin(message: types.Message):
         [InlineKeyboardButton(text="➕ Kanal qo'shish (Majburiy)", callback_data="admin:add_channel")],
         [InlineKeyboardButton(text="➖ Kanallarni ko'rish/o'chirish", callback_data="admin:list_channels")],
         [InlineKeyboardButton(text="📚 Yangi manga (havola) qo'shish", callback_data="admin:add_manga")],
+        [InlineKeyboardButton(text="🖼 Eski manga uchun post yaratish", callback_data="admin:old_manga_post")],
         [InlineKeyboardButton(text="👥 Foydalanuvchilar soni", callback_data="admin:stats")]
     ])
     await message.answer("Admin paneliga xush kelibsiz. Nima qilamiz?", reply_markup=kb)
@@ -267,6 +272,10 @@ async def admin_callbacks(callback: CallbackQuery, state: FSMContext):
     elif action == "add_manga":
         await callback.message.answer("Yopiq kanaldagi postni shu yerga FORWARD (uzatish) qiling.")
         await state.set_state(AdminStates.waiting_for_manga_post)
+        
+    elif action == "old_manga_post":
+        await callback.message.answer("Post yaratmoqchi bo'lgan eski manga kodini kiriting (Masalan: solo_15):")
+        await state.set_state(AdminStates.waiting_for_old_manga_code)
         
     elif action == "stats":
         users = await database.get_all_users()
@@ -343,7 +352,31 @@ async def process_manga_code(message: types.Message, state: FSMContext):
     bot_info = await bot.get_me()
     link = f"https://t.me/{bot_info.username}?start={code}"
     
-    await message.answer(f"✅ Muvaffaqiyatli saqlandi!\n\nUshbu manganing qismini olish uchun tayyor havola:\n{link}")
+    await state.update_data(manga_code=code, manga_link=link)
+    
+    await message.answer(f"✅ Muvaffaqiyatli saqlandi!\n\nUshbu manganing qismini olish uchun tayyor havola:\n{link}\n\nEndi asosiy kanalga yuborish uchun manga rasmini yuboring (izoh sifatida post matnini yozishingiz mumkin):")
+    await state.set_state(AdminStates.waiting_for_manga_image)
+
+@dp.message(AdminStates.waiting_for_manga_image, F.photo)
+async def process_manga_image(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    link = data.get('manga_link')
+    code = data.get('manga_code')
+    
+    caption = message.caption if message.caption else "Yangi manga qismi yuklandi!"
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 O'qish", url=link)]
+    ])
+    
+    await message.answer_photo(
+        photo=message.photo[-1].file_id,
+        caption=caption,
+        caption_entities=message.caption_entities,
+        reply_markup=kb
+    )
+    
+    await message.answer("✅ Tayyor post! Buni asosiy kanalingizga yuborishingiz mumkin.")
     
     # Rassilka (xabar yuborish) qismi
     series_code = code.split('_')[0] if '_' in code else code
@@ -360,6 +393,45 @@ async def process_manga_code(message: types.Message, state: FSMContext):
         await message.answer(f"📢 {success} ta obunachiga yangi qism haqida xabar yuborildi!")
         
     await state.clear()
+
+@dp.message(AdminStates.waiting_for_manga_image)
+async def process_manga_image_fallback(message: types.Message, state: FSMContext):
+    await message.answer("Iltimos, rasm yuboring (post matnini rasm izohiga yozishingiz mumkin).")
+
+@dp.message(AdminStates.waiting_for_old_manga_code)
+async def process_old_manga_code(message: types.Message, state: FSMContext):
+    code = message.text.strip().replace(" ", "_")
+    bot_info = await bot.get_me()
+    link = f"https://t.me/{bot_info.username}?start={code}"
+    
+    await state.update_data(old_manga_link=link)
+    await message.answer(f"Ushbu manganing linki tayyorlandi:\n{link}\n\nEndi post uchun rasm yuboring (izoh sifatida matn qo'shishingiz mumkin):")
+    await state.set_state(AdminStates.waiting_for_old_manga_image)
+
+@dp.message(AdminStates.waiting_for_old_manga_image, F.photo)
+async def process_old_manga_image(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    link = data.get('old_manga_link')
+    
+    caption = message.caption if message.caption else "Manga qismi yuklandi!"
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 O'qish", url=link)]
+    ])
+    
+    await message.answer_photo(
+        photo=message.photo[-1].file_id,
+        caption=caption,
+        caption_entities=message.caption_entities,
+        reply_markup=kb
+    )
+    
+    await message.answer("✅ Tayyor post! Buni asosiy kanalingizga yuborishingiz mumkin.")
+    await state.clear()
+
+@dp.message(AdminStates.waiting_for_old_manga_image)
+async def process_old_manga_image_fallback(message: types.Message, state: FSMContext):
+    await message.answer("Iltimos, rasm yuboring (post matnini rasm izohiga yozishingiz mumkin).")
 
 # ==================================================
 # Dummy Web Server (Render uchun)
